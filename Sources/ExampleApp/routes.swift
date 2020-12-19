@@ -5,9 +5,9 @@ import Twilio
 func routes(_ app: Application) throws {
     // Basic "It works" example
     app.get("sms") { req -> EventLoopFuture<ClientResponse> in
-        let sms = OutgoingSMS(body: "Hey There", from: "+15555555", to: "+15555556")
+        let sms = OutgoingSMS(body: "Test Message", from: "+15555555555", to: "+15555555556")
 
-        return try req.twilio.send(sms, on:req.client)
+        return try req.twilio.send(sms)
     }
 
     app.post("incoming") { req -> Response in

@@ -1,14 +1,16 @@
 import Vapor
 
 public protocol TwilioProvider {
-    func send(_ sms: OutgoingSMS, on client:Client) throws -> EventLoopFuture<ClientResponse>
+    func send(_ sms: OutgoingSMS) throws -> EventLoopFuture<ClientResponse>
 }
 
 public struct Twilio: TwilioProvider {
     let application: Application
+    let clientProvider:ClientProvider
     
-    public init (_ app: Application) {
+    public init (_ app: Application, clientProvider:ClientProvider) {
         application = app
+        self.clientProvider = clientProvider
     }
 }
 
@@ -38,7 +40,7 @@ extension Twilio {
     ///   - content: outgoing sms
     ///   - container: Container
     /// - Returns: Future<Response>
-    public func send(_ sms: OutgoingSMS, on client: Client) throws -> EventLoopFuture<ClientResponse> {
+    public func send(_ sms: OutgoingSMS) throws -> EventLoopFuture<ClientResponse> {
         guard let configuration = self.configuration else {
             fatalError("Twilio not configured. Use app.twilio.configuration = ...")
         }
@@ -48,7 +50,7 @@ extension Twilio {
         headers.add(name: .authorization, value: "Basic \(authKeyEncoded)")
         
         let twilioURI = URI(string: "https://api.twilio.com/2010-04-01/Accounts/\(configuration.accountId)/Messages.json")
-        return application.client.post(twilioURI, headers: headers) {
+        return clientProvider.client.post(twilioURI, headers: headers) {
             try $0.content.encode(sms, as: .urlEncodedForm)
         }
         
@@ -78,9 +80,16 @@ fileprivate extension Twilio {
 }
 
 extension Application {
-    public var twilio: Twilio { .init(self) }
+    public var twilio: Twilio { .init(self, clientProvider: self) }
 }
 
 extension Request {
-    public var twilio: Twilio { .init(application) }
+    public var twilio: Twilio { .init(application, clientProvider: self) }
 }
+
+public protocol ClientProvider {
+    var client: Client {get}
+}
+
+extension Application:ClientProvider {}
+extension Request:ClientProvider {}
