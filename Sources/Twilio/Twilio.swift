@@ -1,7 +1,7 @@
 import Vapor
 
 public protocol TwilioProvider {
-    func send(_ sms: OutgoingSMS) -> EventLoopFuture<ClientResponse>
+    func send(_ sms: OutgoingSMS, on client:Client) throws -> EventLoopFuture<ClientResponse>
 }
 
 public struct Twilio: TwilioProvider {
@@ -38,22 +38,20 @@ extension Twilio {
     ///   - content: outgoing sms
     ///   - container: Container
     /// - Returns: Future<Response>
-    public func send(_ sms: OutgoingSMS) -> EventLoopFuture<ClientResponse> {
+    public func send(_ sms: OutgoingSMS, on client: Client) throws -> EventLoopFuture<ClientResponse> {
         guard let configuration = self.configuration else {
             fatalError("Twilio not configured. Use app.twilio.configuration = ...")
         }
         
-        return application.eventLoopGroup.future().flatMapThrowing { _ -> HTTPHeaders in
-            let authKeyEncoded = try self.encode(accountId: configuration.accountId, accountSecret: configuration.accountSecret)
-            var headers = HTTPHeaders()
-            headers.add(name: .authorization, value: "Basic \(authKeyEncoded)")
-            return headers
-        }.flatMap { headers in
-            let twilioURI = URI(string: "https://api.twilio.com/2010-04-01/Accounts/\(configuration.accountId)/Messages.json")
-            return self.application.client.post(twilioURI, headers: headers) {
-                try $0.content.encode(sms, as: .urlEncodedForm)
-            }
+        let authKeyEncoded = try self.encode(accountId: configuration.accountId, accountSecret: configuration.accountSecret)
+        var headers = HTTPHeaders()
+        headers.add(name: .authorization, value: "Basic \(authKeyEncoded)")
+        
+        let twilioURI = URI(string: "https://api.twilio.com/2010-04-01/Accounts/\(configuration.accountId)/Messages.json")
+        return application.client.post(twilioURI, headers: headers) {
+            try $0.content.encode(sms, as: .urlEncodedForm)
         }
+        
     }
 
     public func respond(with response: SMSResponse) -> Response {

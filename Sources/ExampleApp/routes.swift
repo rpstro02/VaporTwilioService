@@ -4,11 +4,10 @@ import Twilio
 /// Register your application's routes here.
 func routes(_ app: Application) throws {
     // Basic "It works" example
-    //(831) 610-0806
-    app.get { req -> EventLoopFuture<ClientResponse> in
-        let sms = OutgoingSMS(body: "Hey There", from: "+18316100806", to: "+14083688346")
+    app.get("sms") { req -> EventLoopFuture<ClientResponse> in
+        let sms = OutgoingSMS(body: "Hey There", from: "+15555555", to: "+15555556")
 
-        return req.twilio.send(sms)
+        return try req.twilio.send(sms, on:req.client)
     }
 
     app.post("incoming") { req -> Response in
