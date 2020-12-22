@@ -7,7 +7,7 @@ func routes(_ app: Application) throws {
     app.get("sms") { req -> EventLoopFuture<ClientResponse> in
         let sms = OutgoingSMS(body: "Test Message", from: "+15555555555", to: "+15555555556")
 
-        return try req.twilio.send(sms)
+        return req.twilio.send(sms, on: req)
     }
 
     app.post("incoming") { req -> Response in

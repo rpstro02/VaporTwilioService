@@ -1,16 +1,14 @@
 import Vapor
 
 public protocol TwilioProvider {
-    func send(_ sms: OutgoingSMS) throws -> EventLoopFuture<ClientResponse>
+    func send(_ sms: OutgoingSMS, on request:Request) -> EventLoopFuture<ClientResponse>
 }
 
 public struct Twilio: TwilioProvider {
     let application: Application
-    let clientProvider:ClientProvider
     
-    public init (_ app: Application, clientProvider:ClientProvider) {
+    public init (_ app: Application) {
         application = app
-        self.clientProvider = clientProvider
     }
 }
 
@@ -40,18 +38,21 @@ extension Twilio {
     ///   - content: outgoing sms
     ///   - container: Container
     /// - Returns: Future<Response>
-    public func send(_ sms: OutgoingSMS) throws -> EventLoopFuture<ClientResponse> {
+    public func send(_ sms: OutgoingSMS, on request:Request) -> EventLoopFuture<ClientResponse> {
         guard let configuration = self.configuration else {
             fatalError("Twilio not configured. Use app.twilio.configuration = ...")
         }
         
-        let authKeyEncoded = try self.encode(accountId: configuration.accountId, accountSecret: configuration.accountSecret)
-        var headers = HTTPHeaders()
-        headers.add(name: .authorization, value: "Basic \(authKeyEncoded)")
-        
-        let twilioURI = URI(string: "https://api.twilio.com/2010-04-01/Accounts/\(configuration.accountId)/Messages.json")
-        return clientProvider.client.post(twilioURI, headers: headers) {
-            try $0.content.encode(sms, as: .urlEncodedForm)
+        return request.eventLoop.future().flatMapThrowing { _ -> HTTPHeaders in
+            let authKeyEncoded = try self.encode(accountId: configuration.accountId, accountSecret: configuration.accountSecret)
+            var headers = HTTPHeaders()
+            headers.add(name: .authorization, value: "Basic \(authKeyEncoded)")
+            return headers
+        }.flatMap { headers in
+            let twilioURI = URI(string: "https://api.twilio.com/2010-04-01/Accounts/\(configuration.accountId)/Messages.json")
+            return request.client.post(twilioURI, headers: headers) {
+                try $0.content.encode(sms, as: .urlEncodedForm)
+            }
         }
         
     }
@@ -80,16 +81,9 @@ fileprivate extension Twilio {
 }
 
 extension Application {
-    public var twilio: Twilio { .init(self, clientProvider: self) }
+    public var twilio: Twilio { .init(self) }
 }
 
 extension Request {
-    public var twilio: Twilio { .init(application, clientProvider: self) }
+    public var twilio: Twilio { .init(application) }
 }
-
-public protocol ClientProvider {
-    var client: Client {get}
-}
-
-extension Application:ClientProvider {}
-extension Request:ClientProvider {}
